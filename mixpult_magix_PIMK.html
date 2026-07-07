@@ -554,8 +554,19 @@ const KANAELE = [
 // 2) AUDIO AUFBAUEN: für jeden Kanal die Geräte-Kette stecken
 // ------------------------------------------------------------
 function audioStarten() {
-  if (audio) return;
+  if (audio) {
+    // iPHONE-FIX: Safari legt den Audio-Motor gern schlafen
+    // ("suspended") – z.B. beim Start oder wenn das Handy kurz
+    // gesperrt war. Ein resume() direkt im Klick weckt ihn auf.
+    // Andere Browser machen das von allein, Safari nicht immer.
+    if (audio.state === "suspended") audio.resume();
+    return;
+  }
   audio = new (window.AudioContext || window.webkitAudioContext)();
+
+  // ...und auch direkt nach dem Erzeugen einmal wecken,
+  // denn auf iPhones startet er oft schon schlafend:
+  if (audio.state === "suspended") audio.resume();
 
   master = audio.createGain();
   master.gain.value = 0.9;
