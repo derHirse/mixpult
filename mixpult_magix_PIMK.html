@@ -1,0 +1,1124 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mixpult 🎚️</title>
+<style>
+  /* ===== DESIGN: dunkles Studio-Pult ===== */
+  :root {
+    --bg: #0d1117;
+    --pult: #161c26;
+    --strip: #1c2430;
+    --rand: #2a3444;
+    --akzent: #fbbf24;      /* Gelb wie Studio-Lämpchen */
+    --gruen: #4ade80;       /* Pegel unten */
+    --rot: #f87171;         /* Pegel oben / Mute */
+    --blau: #60a5fa;        /* Solo */
+    --text: #e6edf3;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Courier New", monospace;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 16px;
+  }
+
+  h1 {
+    letter-spacing: 5px;
+    font-size: 24px;
+    color: var(--akzent);
+    text-shadow: 0 0 14px rgba(251, 191, 36, 0.5);
+  }
+
+  /* Transport: Play/Stop und Tempo */
+  .transport {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    background: var(--pult);
+    border: 1px solid var(--rand);
+    border-radius: 12px;
+    padding: 12px 18px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .transport button {
+    font-family: inherit;
+    font-size: 16px;
+    padding: 10px 22px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    background: var(--akzent);
+    color: #1a1a1a;
+    font-weight: bold;
+  }
+  .transport button:hover { filter: brightness(1.1); }
+  .transport label { font-size: 13px; opacity: 0.8; }
+  input[type="range"] { accent-color: var(--akzent); cursor: pointer; }
+
+  /* Aufnahme-Knopf: rot, und während der Aufnahme blinkt er */
+  #aufnahme { background: var(--rot); }
+  #aufnahme.laeuft { animation: blinken 1s infinite; }
+  @keyframes blinken { 50% { opacity: 0.45; } }
+
+  /* Der Download-Link, verkleidet als grüner Knopf */
+  #download {
+    background: var(--gruen);
+    color: #1a1a1a;
+    font-weight: bold;
+    font-size: 15px;
+    padding: 10px 18px;
+    border-radius: 8px;
+    text-decoration: none;
+  }
+
+  /* ===== Das Tanz-Männchen ===== */
+  #maennchen { width: 54px; height: 72px; }
+
+  #maennchen .teil {
+    stroke: var(--akzent);
+    stroke-width: 4;
+    stroke-linecap: round;   /* runde Linien-Enden = Gelenke */
+    fill: none;
+  }
+  #maennchen .kopf { fill: var(--akzent); }
+
+  /* WICHTIG: Jedes Körperteil dreht sich um sein GELENK.
+     transform-origin legt den Drehpunkt fest:
+     Arme drehen an der Schulter (30,26),
+     Beine an der Hüfte (30,48). */
+  #maennchen .armL,
+  #maennchen .armR  { transform-origin: 30px 26px; }
+  #maennchen .beinL,
+  #maennchen .beinR { transform-origin: 30px 48px; }
+  #maennchen .koerper { transform-origin: 30px 76px; }
+
+  /* Die Choreografie: eine Keyframe-Animation beschreibt,
+     wie sich etwas ÜBER DIE ZEIT verändern soll.
+     0% = Anfang ... 100% = Ende, dann von vorn.
+     Neu mit mehr Pepp: erst in die Knie (scaleY staucht ihn),
+     dann SPRUNG nach oben! */
+  @keyframes hopsen {
+    0%   { transform: translateY(0)    rotate(-7deg); }
+    25%  { transform: translateY(7px)  scaleY(0.92) rotate(0deg); }  /* Knie! */
+    50%  { transform: translateY(-8px) rotate(7deg); }               /* Sprung! */
+    75%  { transform: translateY(7px)  scaleY(0.92) rotate(0deg); }
+    100% { transform: translateY(0)    rotate(-7deg); }
+  }
+  @keyframes schwingL {
+    0%, 100% { transform: rotate(-30deg); }
+    50%      { transform: rotate(110deg); }  /* Arm HOCH in die Luft! */
+  }
+  @keyframes schwingR {
+    0%, 100% { transform: rotate(110deg); }  /* gegengleich */
+    50%      { transform: rotate(-30deg); }
+  }
+  @keyframes kickL {
+    0%, 100% { transform: rotate(20deg); }
+    50%      { transform: rotate(-30deg); }
+  }
+  @keyframes kickR {
+    0%, 100% { transform: rotate(-30deg); }
+    50%      { transform: rotate(20deg); }
+  }
+
+  /* Die PIROUETTE: die meiste Zeit (0-80%) passiert nichts,
+     dann dreht sich das ganze Männchen einmal komplett um
+     sich selbst (360 Grad) – alle 8 Taktschläge eine Show! */
+  @keyframes pirouette {
+    0%, 80% { transform: rotate(0deg); }
+    100%    { transform: rotate(360deg); }
+  }
+
+  /* DISCO: hue-rotate dreht am Farbkreis – das gelbe
+     Männchen wandert durch alle Regenbogenfarben! */
+  @keyframes disco {
+    to { filter: hue-rotate(360deg); }
+  }
+
+  /* Getanzt wird NUR mit der Klasse "tanzt" (setzt JavaScript
+     beim Play-Knopf). --beat ist die Dauer eines Taktschlags.
+     Mit calc() rechnet CSS selbst: Pirouette alle 8 Schläge,
+     Discofarben alle 4. Zwei Animationen gleichzeitig gehen
+     einfach mit Komma! */
+  #maennchen.tanzt {
+    animation: pirouette calc(var(--beat, 0.6s) * 8) infinite ease-in-out,
+               disco     calc(var(--beat, 0.6s) * 4) infinite linear;
+  }
+  #maennchen.tanzt .koerper { animation: hopsen  var(--beat, 0.6s) infinite ease-in-out; }
+  #maennchen.tanzt .armL    { animation: schwingL var(--beat, 0.6s) infinite ease-in-out; }
+  #maennchen.tanzt .armR    { animation: schwingR var(--beat, 0.6s) infinite ease-in-out; }
+  #maennchen.tanzt .beinL   { animation: kickL   var(--beat, 0.6s) infinite ease-in-out; }
+  #maennchen.tanzt .beinR   { animation: kickR   var(--beat, 0.6s) infinite ease-in-out; }
+
+  /* Das Magische Auge: rund wie eine echte Radioröhre,
+     mit grünem Glühen drumherum */
+  #auge {
+    width: min(38vw, 150px);
+    height: min(38vw, 150px);
+    border-radius: 50%;                /* aus dem Quadrat wird ein Kreis */
+    border: 5px solid #1c2430;         /* die "Fassung" der Röhre */
+    box-shadow: 0 0 35px rgba(74, 222, 128, 0.35),   /* Glühen außen */
+                inset 0 0 20px rgba(0, 0, 0, 0.8);   /* Tiefe innen */
+    background: #04140a;
+  }
+
+  /* ===== Die Takt-Anzeige ("Musik nach Noten") =====
+     Eine Tabelle: jede Zeile = eine Spur,
+     jede Spalte = ein Schlag im Takt. */
+  #noten {
+    display: grid;
+    grid-template-columns: 84px repeat(8, 1fr);  /* Name + 8 Schläge */
+    gap: 2px;
+    width: min(92vw, 640px);
+    background: var(--pult);
+    border: 1px solid var(--rand);
+    border-radius: 12px;
+    padding: 8px;
+    font-size: 12px;
+  }
+  #noten .zelle {
+    background: #0a0e14;
+    border-radius: 4px;
+    text-align: center;
+    padding: 5px 2px;
+    min-height: 24px;
+    overflow: hidden;
+  }
+  #noten .kopf { background: none; color: var(--akzent); font-weight: bold; }
+  #noten .zaehl { background: none; opacity: 0.6; }         /* die "und"-Schläge */
+  #noten .spurname { background: none; text-align: left; opacity: 0.85; }
+  #noten .zelle.spielt {                                     /* der Lichtbalken! */
+    background: var(--akzent);
+    color: #1a1a1a;
+    font-weight: bold;
+  }
+
+  /* Die "Klaviertasten" links: hell wie echte weiße Tasten */
+  #noten .taste {
+    background: #f5f2ff;
+    color: #444;
+    font-size: 10px;
+    text-align: right;
+    padding: 2px 6px;
+    min-height: 0;
+  }
+
+  /* Die Zeitraster-Zellen der Piano Roll: flach und leer */
+  #noten .rollzelle {
+    min-height: 16px;
+    padding: 2px;
+    display: flex;
+    gap: 2px;
+    align-items: center;
+  }
+
+  /* Ein Ton-Block. Die Farbe kommt von seiner Spur. */
+  #noten .block {
+    flex: 1;
+    height: 10px;
+    border-radius: 3px;
+    opacity: 0.85;
+  }
+  /* Wenn der Ton GERADE erklingt: aufleuchten + Glühen! */
+  #noten .block.spielt {
+    opacity: 1;
+    box-shadow: 0 0 8px 2px currentColor, 0 0 8px 2px #fff8;
+    transform: scaleY(1.35);
+  }
+
+  /* Die Legende: welche Farbe = welche Spur */
+  #legende {
+    display: flex;
+    gap: 16px;
+    font-size: 12px;
+    opacity: 0.85;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  #legende i {
+    display: inline-block;
+    width: 10px; height: 10px;
+    border-radius: 3px;
+    margin-right: 5px;
+  }
+
+  @media (max-width: 620px) {
+    #noten { grid-template-columns: 30px repeat(8, 1fr); font-size: 10px; }
+    #noten .spurname .nur-gross { display: none; }   /* am Handy nur Emoji */
+  }
+
+  /* ===== Das eigentliche Pult ===== */
+  #pult {
+    display: flex;
+    flex-wrap: wrap;              /* auf schmalen Handys umbrechen */
+    justify-content: center;
+    gap: 10px;
+    background: var(--pult);
+    border: 1px solid var(--rand);
+    border-radius: 14px;
+    padding: 14px;
+  }
+
+  /* Ein Kanalzug ("channel strip") – wie am echten Pult */
+  .strip {
+    background: var(--strip);
+    border: 1px solid var(--rand);
+    border-radius: 10px;
+    padding: 10px 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    width: min(14vw, 86px);
+  }
+
+  .strip h2 { font-size: 12px; letter-spacing: 1px; }
+  .strip .emoji { font-size: 22px; }
+
+  /* Tempo-Wähler pro Spur */
+  .strip .tempowahl {
+    width: 95%;
+    font-family: inherit;
+    font-size: 11px;
+    background: #0a0e14;
+    color: var(--text);
+    border: 1px solid var(--rand);
+    border-radius: 6px;
+    padding: 3px 4px;
+    cursor: pointer;
+  }
+
+  /* Pan-Regler (links/rechts) */
+  .strip .pan { width: 90%; }
+  .strip .pan-label { font-size: 10px; opacity: 0.6; }
+
+  /* Fader + Pegel nebeneinander */
+  .mitte { display: flex; gap: 6px; align-items: center; height: 150px; }
+
+  /* Senkrechter Lautstärke-Fader */
+  .fader {
+    writing-mode: vertical-lr;
+    direction: rtl;              /* oben = laut, unten = leise */
+    width: 26px;
+    height: 100%;
+  }
+
+  /* Die Pegelanzeige (VU-Meter): ein schmaler Balken,
+     dessen Füllhöhe wir per JavaScript setzen */
+  .meter {
+    width: 10px;
+    height: 100%;
+    background: #0a0e14;
+    border: 1px solid var(--rand);
+    border-radius: 4px;
+    display: flex;
+    align-items: flex-end;       /* Balken wächst von unten */
+    overflow: hidden;
+  }
+  .meter .balken {
+    width: 100%;
+    /* JavaScript setzt nur noch die Variable --pegel.
+       OB daraus Höhe (Desktop) oder Breite (Handy) wird,
+       entscheidet das CSS – clevere Arbeitsteilung! */
+    height: var(--pegel, 0%);
+    background: linear-gradient(to top, var(--gruen) 60%, var(--akzent) 85%, var(--rot));
+    transition: height 0.06s linear, width 0.06s linear;
+  }
+
+  /* Mute- und Solo-Knöpfe */
+  .knoepfe { display: flex; gap: 6px; }
+  .knoepfe button {
+    font-family: inherit;
+    font-size: 11px;
+    width: 30px; height: 26px;
+    border-radius: 6px;
+    border: 1px solid var(--rand);
+    background: #0a0e14;
+    color: var(--text);
+    cursor: pointer;
+  }
+  button.mute.an { background: var(--rot); color: #1a1a1a; font-weight: bold; }
+  button.solo.an { background: var(--blau); color: #1a1a1a; font-weight: bold; }
+
+  .hint { font-size: 13px; opacity: 0.65; text-align: center; max-width: 620px; }
+
+  /* Der Abspann: dezent, aber mit Studio-Leuchten */
+  #credits {
+    font-size: 14px;
+    letter-spacing: 1px;
+    color: var(--akzent);
+    text-shadow: 0 0 10px rgba(251, 191, 36, 0.4);
+    padding: 6px 14px;
+    border: 1px solid var(--rand);
+    border-radius: 999px;      /* Pillen-Form */
+    background: var(--pult);
+  }
+
+  /* Verhindert auf Touch-Geräten die Doppeltipp-Zoom-Verzögerung */
+  button, select, input { touch-action: manipulation; }
+
+  /* ===== HANDY-MODUS =====
+     Eine "Media Query" ist eine Wenn-Dann-Regel fürs CSS:
+     "WENN der Bildschirm schmaler als 620px ist,
+      DANN gelten zusätzlich diese Regeln."
+     Wir bauen das Pult dann um: Kanäle als Zeilen unter-
+     einander, Fader quer und schön dick zum Anfassen. */
+  @media (max-width: 620px) {
+    #pult { flex-direction: column; width: 94vw; gap: 8px; }
+
+    .strip {
+      width: 100%;
+      flex-direction: row;      /* Inhalte nebeneinander... */
+      flex-wrap: wrap;          /* ...mit Umbruch */
+      align-items: center;
+      gap: 8px;
+      padding: 10px;
+    }
+
+    /* Mit "order" sortieren wir die Elemente neu, ohne das
+       HTML anzufassen: erst Kopfzeile, dann Fader, dann Pan */
+    .strip .emoji     { order: 1; font-size: 20px; }
+    .strip h2         { order: 2; }
+    .strip .tempowahl { order: 3; width: auto; margin-left: auto;
+                        font-size: 16px; }  /* ab 16px zoomt das
+                                               iPhone nicht rein */
+    .knoepfe          { order: 4; }
+    .mitte            { order: 5; }
+    .strip .pan-label { order: 6; width: 100%; text-align: center; }
+    .strip .pan       { order: 7; width: 100%; }
+
+    /* Der Fader liegt jetzt QUER: links leise, rechts laut */
+    .mitte {
+      width: 100%;
+      height: auto;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .fader {
+      writing-mode: horizontal-tb;   /* zurück auf waagerecht */
+      direction: ltr;
+      width: 100%;
+      height: 34px;                  /* dick genug für Daumen */
+    }
+
+    /* Die Pegelanzeige wird zum Querbalken unter dem Fader.
+       Sie nutzt dieselbe --pegel-Variable – nur als BREITE! */
+    .meter {
+      width: 100%;
+      height: 10px;
+      align-items: stretch;
+      justify-content: flex-start;
+    }
+    .meter .balken {
+      height: 100%;
+      width: var(--pegel, 0%);
+      background: linear-gradient(to right, var(--gruen) 60%, var(--akzent) 85%, var(--rot));
+    }
+
+    /* Faustregel fürs Handy: Knöpfe mindestens ~44px groß,
+       sonst tippt man ständig daneben */
+    .knoepfe button { width: 46px; height: 40px; font-size: 14px; }
+  }
+</style>
+</head>
+<body>
+
+<h1>MIXPULT</h1>
+
+<div class="transport">
+  <!-- Das Tanz-Männchen: ein Strichmännchen aus SVG-Linien.
+       Jedes Körperteil steckt in einer eigenen Gruppe <g>,
+       damit wir Arme und Beine EINZELN bewegen können. -->
+  <svg id="maennchen" viewBox="0 0 60 80" aria-hidden="true">
+    <g class="koerper">
+      <circle cx="30" cy="12" r="8" class="teil kopf"/>
+      <line x1="30" y1="20" x2="30" y2="48" class="teil"/>
+      <g class="armL"><line x1="30" y1="26" x2="14" y2="38" class="teil"/></g>
+      <g class="armR"><line x1="30" y1="26" x2="46" y2="38" class="teil"/></g>
+      <g class="beinL"><line x1="30" y1="48" x2="20" y2="72" class="teil"/></g>
+      <g class="beinR"><line x1="30" y1="48" x2="40" y2="72" class="teil"/></g>
+    </g>
+  </svg>
+  <button id="playstop">▶ Play</button>
+  <button id="aufnahme">● Aufnahme</button>
+  <a id="download" hidden>⬇ Speichern</a>
+  <label>Tempo: <span id="bpmAnzeige">100</span> BPM<br>
+    <input type="range" id="bpm" min="60" max="160" step="5" value="100">
+  </label>
+</div>
+
+<!-- Das Magische Auge: wie bei alten Röhrenradios zeigt der
+     grüne Schein die Lautstärke – je lauter, desto weiter
+     schließt sich der dunkle Fächer -->
+<canvas id="auge" width="180" height="180"></canvas>
+
+<!-- Die Kanalzüge werden per JavaScript erzeugt -->
+<div id="pult"></div>
+
+<!-- Die Piano Roll: was spielt wann? (wird per JS gebaut) -->
+<div id="noten"></div>
+
+<p class="hint">
+  Drück Play und misch den Song: Fader = Lautstärke ·
+  Pan = links/rechts · M = stumm (Mute) · S = nur diese Spur (Solo) ·
+  ¼×–2× = eigenes Tempo pro Spur (probier mal Flöte auf ½× und Melodie auf 2×!)
+</p>
+
+<!-- Der Abspann: Wer hat's gebaut? -->
+<footer id="credits">Mixpult by Phillip Ilja und Marie Kunze 😎🎧</footer>
+
+<script>
+// ============================================================
+// MIXPULT – so funktioniert's:
+//
+// Jede Spur (Kanal) hat ihre eigene kleine Geräte-Kette:
+//
+//   Töne der Spur -> Fader (Gain) -> Pan (links/rechts)
+//                 -> Pegelmesser (Analyser) -> Master -> Boxen
+//
+// Alle Spuren treffen sich im "Master" – genau wie an einem
+// echten Pult, wo alle Kabel in der Summe zusammenlaufen.
+//
+// Die Musik selbst ist ein LOOP aus 8 Schritten, der immer
+// wieder von vorn beginnt (wie bei einem Drumcomputer).
+// ============================================================
+
+let audio = null;
+let master = null;
+let masterAnalyser = null;
+
+// ------------------------------------------------------------
+// 1) DIE KANÄLE: Name, Emoji und was sie im Loop spielen.
+//    Die Patterns sind Arrays mit 8 Schritten.
+//    Bei den Drums: 1 = spielen, 0 = Pause.
+//    Bei Bass/Akkorden/Melodie stehen Frequenzen (Hz) drin.
+// ------------------------------------------------------------
+const NOTE = {  // kleine Notentabelle, damit die Patterns lesbar sind
+  A2: 110.00, C3: 130.81, D3: 146.83, E3: 164.81,
+  A3: 220.00, C4: 261.63, D4: 293.66, E4: 329.63, G4: 392.00,
+  A4: 440.00, C5: 523.25, D5: 587.33, E5: 659.25
+};
+
+const KANAELE = [
+  {
+    name: "DRUMS", emoji: "🥁",
+    kick:  [1,0,0,0, 1,0,0,0],     // Bassdrum auf Schlag 1 und 3
+    snare: [0,0,1,0, 0,0,1,0],     // Snare auf 2 und 4
+    hihat: [1,1,1,1, 1,1,1,1],     // Hi-Hat tickt durchgehend
+  },
+  {
+    name: "BASS", emoji: "🎸",
+    noten: [NOTE.A2, 0, NOTE.A2, 0, NOTE.C3, 0, NOTE.E3, NOTE.D3],
+  },
+  {
+    name: "CHORDS", emoji: "🎹",
+    // Ein Akkord = mehrere Töne gleichzeitig (hier als Array).
+    // "namen" ist nur für die Takt-Anzeige: A-Moll und Asus4.
+    noten: [[NOTE.A3, NOTE.C4, NOTE.E4], 0, 0, 0,
+            [NOTE.A3, NOTE.D4, NOTE.E4], 0, 0, 0],
+    namen: ["Am", 0, 0, 0, "Asus4", 0, 0, 0],
+  },
+  {
+    name: "MELODY", emoji: "🎵",
+    noten: [NOTE.A4, 0, NOTE.C5, NOTE.A4, 0, NOTE.E5, 0, NOTE.G4],
+  },
+  {
+    name: "BECKEN", emoji: "🥇",
+    // Crash am Loop-Anfang, ein leiseres "Ride" in der Mitte
+    pattern: [1, 0, 0, 0, 0.4, 0, 0, 0],
+  },
+  {
+    name: "FLÖTE", emoji: "🪈",
+    // Die Flöte spielt lange, ruhige Töne über den Akkorden.
+    // Übrigens: D5 hat GENAU die doppelte Frequenz von D4
+    // (587,33 = 2 x 293,66) – eine Oktave höher = Frequenz
+    // mal 2. Musik-Mathe. :)
+    noten: [NOTE.E5, 0, 0, 0, NOTE.C5, 0, NOTE.D5, 0],
+  },
+];
+
+// ------------------------------------------------------------
+// 2) AUDIO AUFBAUEN: für jeden Kanal die Geräte-Kette stecken
+// ------------------------------------------------------------
+function audioStarten() {
+  if (audio) return;
+  audio = new (window.AudioContext || window.webkitAudioContext)();
+
+  master = audio.createGain();
+  master.gain.value = 0.9;
+
+  // Für das Magische Auge: der Master-Analyser sieht die
+  // FERTIGE Mischung aller Spuren, kurz vor den Boxen.
+  masterAnalyser = audio.createAnalyser();
+  masterAnalyser.fftSize = 2048;
+  master.connect(masterAnalyser);
+  masterAnalyser.connect(audio.destination);
+
+  for (const k of KANAELE) {
+    k.fader = audio.createGain();          // Lautstärke-Fader
+    k.pan = audio.createStereoPanner();    // links/rechts
+    k.analyser = audio.createAnalyser();   // misst den Pegel
+    k.analyser.fftSize = 256;
+
+    // Kette: fader -> pan -> analyser -> master
+    k.fader.connect(k.pan);
+    k.pan.connect(k.analyser);
+    k.analyser.connect(master);
+
+    // Fader auf den aktuellen Reglerwert setzen
+    k.fader.gain.value = 0.8;
+
+    k.mute = false;
+    k.solo = false;
+  }
+  pegelSchleife();
+}
+
+// Mute/Solo-Logik: Welcher Kanal ist gerade wirklich hörbar?
+// Regel: Wenn IRGENDWO Solo leuchtet, sind alle anderen stumm.
+function hoerbar(k) {
+  const soloAktiv = KANAELE.some(x => x.solo);
+  if (soloAktiv) return k.solo;
+  return !k.mute;
+}
+
+// ------------------------------------------------------------
+// 3) DIE INSTRUMENTE: kleine Klang-Rezepte.
+//    Alle bekommen "ziel" (den Fader ihres Kanals) und "zeit"
+//    (WANN sie spielen sollen – so bleibt alles im Takt).
+// ------------------------------------------------------------
+
+// Bassdrum: ein Sinuston, der blitzschnell nach unten rutscht
+function kick(ziel, zeit) {
+  const osc = audio.createOscillator();
+  const g = audio.createGain();
+  osc.frequency.setValueAtTime(150, zeit);
+  osc.frequency.exponentialRampToValueAtTime(40, zeit + 0.12);  // Rutsch!
+  g.gain.setValueAtTime(0.9, zeit);
+  g.gain.exponentialRampToValueAtTime(0.001, zeit + 0.25);
+  osc.connect(g); g.connect(ziel);
+  osc.start(zeit); osc.stop(zeit + 0.3);
+}
+
+// Rauschen als Grundlage für Snare und Hi-Hat.
+// Wir füllen einen Puffer mit Zufallswerten = weißes Rauschen.
+function rauschen(zeit, dauer, filterTyp, filterFreq, lautstaerke, ziel) {
+  const puffer = audio.createBuffer(1, audio.sampleRate * dauer, audio.sampleRate);
+  const daten = puffer.getChannelData(0);
+  for (let i = 0; i < daten.length; i++) daten[i] = Math.random() * 2 - 1;
+
+  const quelle = audio.createBufferSource();
+  quelle.buffer = puffer;
+  const filter = audio.createBiquadFilter();  // formt das Rauschen
+  filter.type = filterTyp;
+  filter.frequency.value = filterFreq;
+  const g = audio.createGain();
+  g.gain.setValueAtTime(lautstaerke, zeit);
+  g.gain.exponentialRampToValueAtTime(0.001, zeit + dauer);
+
+  quelle.connect(filter); filter.connect(g); g.connect(ziel);
+  quelle.start(zeit);
+}
+
+const snare = (ziel, zeit) => rauschen(zeit, 0.18, "bandpass", 1800, 0.7, ziel);
+const hihat = (ziel, zeit) => rauschen(zeit, 0.05, "highpass", 8000, 0.3, ziel);
+
+// Becken (Crash): auch Rauschen, aber LANG und sehr hell.
+// Der Unterschied zur kurzen Hi-Hat ist nur die Dauer –
+// dadurch "schimmert" es aus wie ein echtes Becken.
+function becken(ziel, zeit, staerke) {
+  rauschen(zeit, 1.2, "highpass", 6000, 0.35 * staerke, ziel);
+  // Zweite Rauschschicht in anderer Höhe = metallischer Klang
+  rauschen(zeit, 0.9, "bandpass", 9000, 0.25 * staerke, ziel);
+}
+
+// Flöte: ein Sinuston, aber mit zwei Tricks:
+// 1. Weicher EINSCHWUNG (der Ton wird sanft angeblasen,
+//    statt sofort da zu sein – wie bei einer echten Flöte).
+// 2. VIBRATO: ein zweiter Mini-Oszillator (LFO) wackelt
+//    5x pro Sekunde ganz leicht an der Tonhöhe.
+function floete(ziel, zeit, freq, dauer) {
+  const osc = audio.createOscillator();
+  osc.type = "sine";
+  osc.frequency.value = freq;
+
+  // Das Vibrato: LFO -> wackelt an osc.frequency
+  const lfo = audio.createOscillator();
+  const lfoStaerke = audio.createGain();
+  lfo.frequency.value = 5;          // 5 Wackler pro Sekunde
+  lfoStaerke.gain.value = 6;        // um +-6 Hz herum
+  lfo.connect(lfoStaerke);
+  lfoStaerke.connect(osc.frequency);
+
+  // Weicher Einschwung: Lautstärke fährt erst hoch, dann runter
+  const g = audio.createGain();
+  g.gain.setValueAtTime(0.0001, zeit);
+  g.gain.linearRampToValueAtTime(0.25, zeit + 0.08);   // anblasen
+  g.gain.exponentialRampToValueAtTime(0.001, zeit + dauer);
+
+  osc.connect(g); g.connect(ziel);
+  osc.start(zeit); lfo.start(zeit);
+  osc.stop(zeit + dauer); lfo.stop(zeit + dauer);
+}
+
+// Ein normaler Ton (für Bass, Akkorde, Melodie)
+function ton(ziel, zeit, freq, wellenform, dauer, lautstaerke) {
+  const osc = audio.createOscillator();
+  const g = audio.createGain();
+  osc.type = wellenform;
+  osc.frequency.value = freq;
+  g.gain.setValueAtTime(lautstaerke, zeit);
+  g.gain.exponentialRampToValueAtTime(0.001, zeit + dauer);
+  osc.connect(g); g.connect(ziel);
+  osc.start(zeit); osc.stop(zeit + dauer);
+}
+
+// ------------------------------------------------------------
+// 4) DER SEQUENZER: spielt den 8-Schritte-Loop.
+//    Profi-Trick "Lookahead": Wir planen jeden Schritt ein
+//    kleines Stück IM VORAUS mit der superpräzisen Audio-Uhr
+//    (audio.currentTime). So bleibt der Beat immer exakt,
+//    auch wenn der Browser mal kurz beschäftigt ist.
+// ------------------------------------------------------------
+let laeuft = false;
+let timer = null;
+
+// Spielt EINEN Schritt EINES Kanals. Jeder Kanal weiß selbst,
+// bei welchem Schritt er gerade ist (k.schritt) – so kann
+// jeder in seinem eigenen Tempo durch sein Pattern laufen!
+function kanalSchritt(k, zeit) {
+  const s = k.schritt;
+
+  if (hoerbar(k)) {
+    if (k.name === "DRUMS") {
+      if (k.kick[s])  kick(k.fader, zeit);
+      if (k.snare[s]) snare(k.fader, zeit);
+      if (k.hihat[s]) hihat(k.fader, zeit);
+    }
+    if (k.name === "BASS" && k.noten[s]) {
+      ton(k.fader, zeit, k.noten[s], "sawtooth", 0.25, 0.5);
+    }
+    if (k.name === "CHORDS" && k.noten[s]) {
+      for (const f of k.noten[s]) {          // alle Akkord-Töne
+        ton(k.fader, zeit, f, "triangle", 0.9, 0.18);
+      }
+    }
+    if (k.name === "MELODY" && k.noten[s]) {
+      ton(k.fader, zeit, k.noten[s], "square", 0.2, 0.2);
+    }
+    if (k.name === "BECKEN" && k.pattern[s]) {
+      becken(k.fader, zeit, k.pattern[s]);   // Zahl = Anschlagstärke
+    }
+    if (k.name === "FLÖTE" && k.noten[s]) {
+      floete(k.fader, zeit, k.noten[s], 1.1);
+    }
+  }
+
+  k.schritt = (s + 1) % 8;   // nach Schritt 7 wieder zu 0
+}
+
+function planer() {
+  const bpm = Number(document.getElementById("bpm").value);
+  const basisDauer = 60 / bpm / 2;   // 8tel-Noten: halber Beat
+
+  // Jeder Kanal plant SEINE nächsten Schritte selbst.
+  // Sein Tempo-Faktor teilt die Schrittdauer:
+  // Faktor 2 = halbe Dauer = doppelt so schnell!
+  for (const k of KANAELE) {
+    const dauer = basisDauer / k.tempo;
+    while (k.naechsteZeit < audio.currentTime + 0.1) {
+      kanalSchritt(k, k.naechsteZeit);
+      k.naechsteZeit += dauer;
+    }
+  }
+}
+
+// Das Männchen soll im TAKT tanzen. Ein kompletter Tanz-Zyklus
+// (hoch-runter) dauert genau 2 Taktschläge:
+// Dauer = 2 * 60 / BPM Sekunden. Bei 120 BPM also 1 Sekunde.
+const maennchen = document.getElementById("maennchen");
+
+function tanzTempoSetzen() {
+  const bpm = Number(document.getElementById("bpm").value);
+  maennchen.style.setProperty("--beat", (2 * 60 / bpm) + "s");
+}
+tanzTempoSetzen();  // einmal beim Start ausrechnen
+
+document.getElementById("playstop").addEventListener("click", () => {
+  audioStarten();
+  laeuft = !laeuft;
+  const knopf = document.getElementById("playstop");
+  if (laeuft) {
+    // Alle Kanal-Uhren auf Anfang stellen, damit alle
+    // gemeinsam bei Schritt 0 loslegen:
+    const start = audio.currentTime + 0.05;
+    for (const k of KANAELE) {
+      k.schritt = 0;
+      k.naechsteZeit = start;
+    }
+    timer = setInterval(planer, 25);   // Planer schaut alle 25 ms nach
+    knopf.textContent = "■ Stop";
+    maennchen.classList.add("tanzt");     // Tanz an!
+  } else {
+    clearInterval(timer);
+    knopf.textContent = "▶ Play";
+    maennchen.classList.remove("tanzt");  // Tanz aus.
+  }
+});
+
+document.getElementById("bpm").addEventListener("input", (e) => {
+  document.getElementById("bpmAnzeige").textContent = e.target.value;
+  tanzTempoSetzen();   // Männchen tanzt sofort im neuen Tempo mit
+});
+
+// ------------------------------------------------------------
+// 5) DAS PULT ZEICHNEN: für jeden Kanal einen Kanalzug bauen
+// ------------------------------------------------------------
+const pult = document.getElementById("pult");
+
+for (const k of KANAELE) {
+  // Jeder Kanal bekommt seine eigene "Uhr":
+  k.tempo = 1;          // 1 = normales Tempo
+  k.schritt = 0;        // eigener Schrittzähler
+  k.naechsteZeit = 0;   // eigene nächste Spielzeit
+
+  const strip = document.createElement("div");
+  strip.className = "strip";
+  strip.innerHTML = `
+    <div class="emoji">${k.emoji}</div>
+    <h2>${k.name}</h2>
+    <select class="tempowahl" title="Tempo dieser Spur">
+      <option value="0.25">¼× Tempo</option>
+      <option value="0.5">½× Tempo</option>
+      <option value="1" selected>1× Tempo</option>
+      <option value="2">2× Tempo</option>
+    </select>
+    <span class="pan-label">L · Pan · R</span>
+    <input class="pan" type="range" min="-1" max="1" step="0.1" value="0">
+    <div class="mitte">
+      <input class="fader" type="range" min="0" max="1" step="0.01" value="0.8"
+             orient="vertical">
+      <div class="meter"><div class="balken"></div></div>
+    </div>
+    <div class="knoepfe">
+      <button class="mute">M</button>
+      <button class="solo">S</button>
+    </div>
+  `;
+  pult.appendChild(strip);
+
+  // Regler mit den Audio-Geräten verbinden
+  strip.querySelector(".tempowahl").addEventListener("change", (e) => {
+    k.tempo = Number(e.target.value);
+    // Der Kanal übernimmt das neue Tempo einfach beim
+    // nächsten Schritt – kein Neustart nötig!
+  });
+  strip.querySelector(".fader").addEventListener("input", (e) => {
+    if (k.fader) k.fader.gain.value = Number(e.target.value);
+  });
+  strip.querySelector(".pan").addEventListener("input", (e) => {
+    if (k.pan) k.pan.pan.value = Number(e.target.value);
+  });
+  strip.querySelector(".mute").addEventListener("click", (e) => {
+    k.mute = !k.mute;
+    e.target.classList.toggle("an", k.mute);
+  });
+  strip.querySelector(".solo").addEventListener("click", (e) => {
+    k.solo = !k.solo;
+    e.target.classList.toggle("an", k.solo);
+  });
+
+  k.balken = strip.querySelector(".balken");
+}
+
+// ------------------------------------------------------------
+// 7) AUFNAHME: die eigene Mischung als Datei speichern!
+//
+// So funktioniert's: Wir stecken an den Master ein ZWEITES
+// Kabel, das zu einem virtuellen Aufnahmegerät führt
+// (MediaStreamDestination). Der MediaRecorder schneidet dort
+// alles mit – inklusive allem, was du LIVE am Pult machst:
+// Fader ziehen, Tempo ändern, Solo drücken. Deine Performance!
+// ------------------------------------------------------------
+let recorder = null;
+let aufnahmeZiel = null;
+let stuecke = [];   // hier sammelt der Rekorder die Datenhäppchen
+
+function aufnahmeVorbereiten() {
+  if (aufnahmeZiel) return;
+  aufnahmeZiel = audio.createMediaStreamDestination();
+  master.connect(aufnahmeZiel);   // zweites Kabel vom Master
+}
+
+// FEATURE DETECTION – eine goldene Regel im Web:
+// Frag erst nach, OB der Browser etwas kann, bevor du es
+// benutzt! Auf manchen iPhones/In-App-Browsern gibt es
+// MediaRecorder nämlich gar nicht – und ohne diese Prüfung
+// würde das GANZE Script beim Laden abstürzen (kein Knopf
+// würde mehr funktionieren).
+const kannAufnehmen = typeof MediaRecorder !== "undefined";
+
+// Welches Dateiformat kann DEIN Browser aufnehmen?
+// (MP3 können Browser leider nicht aufnehmen – WebM und M4A
+//  klingen aber genauso gut und laufen überall.)
+const FORMATE = ["audio/webm", "audio/mp4", "audio/ogg"];
+const format = kannAufnehmen
+  ? (FORMATE.find(f => MediaRecorder.isTypeSupported(f)) || "")
+  : "";
+
+// Kann der Browser nicht aufnehmen? Dann verstecken wir den
+// Knopf einfach – alles andere funktioniert trotzdem!
+if (!kannAufnehmen) document.getElementById("aufnahme").hidden = true;
+
+document.getElementById("aufnahme").addEventListener("click", () => {
+  if (!kannAufnehmen) return;   // doppelt hält besser
+  audioStarten();
+  aufnahmeVorbereiten();
+  const knopf = document.getElementById("aufnahme");
+  const link = document.getElementById("download");
+
+  if (!recorder || recorder.state === "inactive") {
+    // --- Aufnahme starten ---
+    stuecke = [];
+    recorder = new MediaRecorder(aufnahmeZiel.stream,
+                                 format ? { mimeType: format } : undefined);
+
+    // Der Rekorder liefert die Aufnahme in Häppchen ("chunks"):
+    recorder.ondataavailable = (e) => stuecke.push(e.data);
+
+    // Beim Stoppen: Häppchen zu EINER Datei (Blob) zusammenkleben
+    // und daraus einen Download-Link bauen.
+    recorder.onstop = () => {
+      const blob = new Blob(stuecke, { type: recorder.mimeType });
+      link.href = URL.createObjectURL(blob);
+      const endung = recorder.mimeType.includes("mp4") ? "m4a"
+                   : recorder.mimeType.includes("ogg") ? "ogg" : "webm";
+      link.download = "mein-mix." + endung;   // Dateiname
+      link.hidden = false;                    // Knopf zeigen
+    };
+
+    recorder.start();
+    knopf.textContent = "■ Aufnahme stoppen";
+    knopf.classList.add("laeuft");
+    link.hidden = true;   // alten Download-Knopf verstecken
+  } else {
+    // --- Aufnahme stoppen ---
+    recorder.stop();
+    knopf.textContent = "● Aufnahme";
+    knopf.classList.remove("laeuft");
+  }
+});
+
+// ------------------------------------------------------------
+// 8) DIE PIANO ROLL: "Musik nach Noten" wie in echten
+//    Musikprogrammen (GarageBand, FL Studio, Ableton)!
+//
+// - Links: eine Klaviertastatur, HOHE Töne OBEN, tiefe unten.
+// - Nach rechts läuft die Zeit (unsere 8 Schritte).
+// - Jeder farbige BLOCK ist ein Ton: seine Zeile sagt WIE HOCH,
+//   seine Spalte sagt WANN. Jede Spur hat ihre eigene Farbe.
+// - Drums & Becken haben keine Tonhöhe – sie bekommen
+//   eigene Zeilen unter dem Klavier.
+// ------------------------------------------------------------
+
+// Die Notentabelle UMDREHEN: aus Frequenz wird wieder ein Name.
+const NAME_VON = {};
+for (const [name, f] of Object.entries(NOTE)) NAME_VON[f] = name;
+
+// Jede melodische Spur bekommt ihre eigene Blockfarbe:
+const SPURFARBE = {
+  BASS: "#60a5fa", CHORDS: "#4ade80",
+  MELODY: "#f472b6", "FLÖTE": "#c084fc"
+};
+
+const notenDiv = document.getElementById("noten");
+
+// Kopfzeile: das musikalische Zählen "1 + 2 + 3 + 4 +"
+const ZAEHLEN = ["1", "+", "2", "+", "3", "+", "4", "+"];
+notenDiv.insertAdjacentHTML("beforeend", `<div class="zelle kopf">🎹</div>`);
+for (const z of ZAEHLEN) {
+  notenDiv.insertAdjacentHTML("beforeend",
+    `<div class="zelle ${z === "+" ? "zaehl" : "kopf"}">${z}</div>`);
+}
+
+// Alle Töne nach Höhe sortieren – der HÖCHSTE zuerst,
+// denn am Klavier (hochkant gedacht) ist oben = hoch.
+const TONREIHEN = Object.entries(NOTE).sort((a, b) => b[1] - a[1]);
+
+// Für jede Tonzeile: links die "Klaviertaste" mit dem Namen,
+// rechts 8 leere Zellen. rollZellen merkt sie sich, damit wir
+// gleich die Blöcke hineinsetzen können.
+const rollZellen = {};
+for (const [name] of TONREIHEN) {
+  notenDiv.insertAdjacentHTML("beforeend", `<div class="zelle taste">${name}</div>`);
+  rollZellen[name] = [];
+  for (let s = 0; s < 8; s++) {
+    const zelle = document.createElement("div");
+    zelle.className = "zelle rollzelle";
+    notenDiv.appendChild(zelle);
+    rollZellen[name].push(zelle);
+  }
+}
+
+// Jetzt die BLÖCKE setzen: Für jede melodische Spur schauen
+// wir jeden Schritt an und hängen für jeden Ton einen
+// farbigen Block in die passende Zelle (Zeile = Tonhöhe).
+// Ein Akkord bekommt automatisch DREI Blöcke übereinander!
+for (const k of KANAELE) {
+  if (!SPURFARBE[k.name]) continue;   // Drums/Becken: kommen unten
+  k.bloecke = [[], [], [], [], [], [], [], []];  // pro Schritt seine Blöcke
+  for (let s = 0; s < 8; s++) {
+    const n = k.noten[s];
+    if (!n) continue;                              // Pause
+    const toene = Array.isArray(n) ? n : [n];      // Akkord oder Einzelton
+    for (const f of toene) {
+      const block = document.createElement("div");
+      block.className = "block";
+      block.style.background = SPURFARBE[k.name];
+      rollZellen[NAME_VON[f]][s].appendChild(block);
+      k.bloecke[s].push(block);
+    }
+  }
+}
+
+// Drum- und Becken-Zeilen unter dem Klavier:
+// K = Kick, S = Snare, · = Hi-Hat, 💥/✨ = Becken stark/sanft
+function drumText(k, s) {
+  if (k.name === "DRUMS") {
+    let t = "";
+    if (k.kick[s])  t += "K";
+    if (k.snare[s]) t += "S";
+    if (!t && k.hihat[s]) t = "·";
+    return t;
+  }
+  if (!k.pattern[s]) return "";
+  return k.pattern[s] >= 1 ? "💥" : "✨";
+}
+
+for (const k of KANAELE) {
+  if (SPURFARBE[k.name]) continue;   // nur Drums & Becken
+  notenDiv.insertAdjacentHTML("beforeend",
+    `<div class="zelle spurname">${k.emoji}<span class="nur-gross"> ${k.name}</span></div>`);
+  k.zellen = [];
+  for (let s = 0; s < 8; s++) {
+    const zelle = document.createElement("div");
+    zelle.className = "zelle";
+    zelle.textContent = drumText(k, s);
+    notenDiv.appendChild(zelle);
+    k.zellen.push(zelle);
+  }
+}
+
+// Die Legende: welche Farbe gehört zu welcher Spur?
+notenDiv.insertAdjacentHTML("afterend",
+  `<div id="legende">` +
+  Object.entries(SPURFARBE).map(([name, farbe]) =>
+    `<span><i style="background:${farbe}"></i>${name}</span>`).join("") +
+  `</div>`);
+
+// ------------------------------------------------------------
+// 6) PEGELANZEIGEN: Wie laut ist jeder Kanal GERADE?
+//    Wir holen die aktuellen Wellendaten und suchen den
+//    größten Ausschlag (den "Peak").
+// ------------------------------------------------------------
+const auge = document.getElementById("auge");
+const actx = auge.getContext("2d");
+
+// Das Auge soll TRÄGE reagieren wie eine echte Röhre:
+// schnell aufglühen, langsam abklingen. Dafür merken wir
+// uns einen geglätteten Pegel zwischen den Bildern.
+let augenPegel = 0;
+
+// Das Magische Auge: ein grün glühender Kreis, in dem sich
+// ein dunkler "Schattenfächer" öffnet und schließt.
+// Leise = Fächer weit offen. Laut = Fächer fast geschlossen.
+// (Genau so zeigten Röhrenradios früher die Senderstärke an!)
+function augeMalen() {
+  // 1. Lautstärke der fertigen Mischung messen (wie bisher)
+  const daten = new Uint8Array(masterAnalyser.fftSize);
+  masterAnalyser.getByteTimeDomainData(daten);
+  let peak = 0;
+  for (const w of daten) peak = Math.max(peak, Math.abs(w - 128));
+
+  // 2. Glätten: Das Auge folgt dem Ziel nur ein Stück weit.
+  //    Nach oben schnell (0.5), nach unten gemütlich (0.06) –
+  //    dadurch "atmet" es wie eine warme Röhre statt zu zappeln.
+  const ziel = Math.min(1, peak / 90);
+  augenPegel += (ziel - augenPegel) * (ziel > augenPegel ? 0.5 : 0.06);
+
+  const M = auge.width / 2;    // Mittelpunkt
+  const R = M - 8;             // Radius
+  actx.clearRect(0, 0, auge.width, auge.height);
+
+  // 3. Die Leuchtschicht: ein Farbverlauf von dunkelgrün
+  //    innen zu hellgrün außen (echte Röhren glühen am Rand!)
+  const glut = actx.createRadialGradient(M, M, R * 0.2, M, M, R);
+  glut.addColorStop(0, "#0c2a10");
+  glut.addColorStop(0.55, "#1f7a33");
+  glut.addColorStop(1, "#52e07a");
+  actx.fillStyle = glut;
+  actx.beginPath(); actx.arc(M, M, R, 0, Math.PI * 2); actx.fill();
+
+  // 4. Der Schattenfächer: ein "Tortenstück" von der Mitte
+  //    zum Rand, das nach oben zeigt. Sein Öffnungswinkel
+  //    hängt am Pegel: leise = 100 Grad, laut = fast 0.
+  const grad = 100 - 94 * augenPegel;
+  const halb = grad * Math.PI / 360;   // halber Winkel, in Radiant
+  actx.fillStyle = "#04140a";
+  actx.beginPath();
+  actx.moveTo(M, M);
+  actx.arc(M, M, R, -Math.PI / 2 - halb, -Math.PI / 2 + halb);
+  actx.closePath();
+  actx.fill();
+
+  // 5. Die "Kathode": der dunkle Punkt in der Mitte der Röhre
+  actx.fillStyle = "#04140a";
+  actx.beginPath(); actx.arc(M, M, R * 0.2, 0, Math.PI * 2); actx.fill();
+}
+
+function pegelSchleife() {
+  requestAnimationFrame(pegelSchleife);
+  augeMalen();
+  for (const k of KANAELE) {
+    // Licht an! k.schritt zeigt auf den NÄCHSTEN Schritt,
+    // also leuchtet die Zelle davor (+7 statt -1, wegen %):
+    const aktuell = (k.schritt + 7) % 8;
+    if (k.zellen) {          // Drums & Becken: ganze Zelle leuchtet
+      k.zellen.forEach((zelle, i) =>
+        zelle.classList.toggle("spielt", laeuft && i === aktuell));
+    }
+    if (k.bloecke) {         // Melodie-Spuren: die BLÖCKE leuchten
+      k.bloecke.forEach((bloecke, i) => bloecke.forEach(b =>
+        b.classList.toggle("spielt", laeuft && i === aktuell)));
+    }
+
+    if (!k.analyser) continue;
+    const daten = new Uint8Array(k.analyser.fftSize);
+    k.analyser.getByteTimeDomainData(daten);
+
+    let peak = 0;
+    for (const wert of daten) {
+      // 128 ist die Stille-Mitte; Abstand davon = Ausschlag
+      peak = Math.max(peak, Math.abs(wert - 128));
+    }
+    // Ausschlag (0..128) in Prozent umrechnen und ans CSS geben
+    k.balken.style.setProperty("--pegel", Math.min(100, (peak / 128) * 130) + "%");
+  }
+}
+</script>
+
+</body>
+</html>
